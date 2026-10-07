@@ -1,0 +1,31 @@
+#!/bin/sh
+# Launcher for json2dir.pp. The Puppet manifest owns UTF-8 checking, JSON parsing, validation
+# and creating the tree; this script only passes stdin, the current directory and the umask
+# to `puppet apply` as facts, with every Puppet directory in a private temporary directory.
+set -u
+
+if [ "$#" -ne 0 ]; then
+  printf '%s\n' 'Usage: json2dir < document.json' >&2
+  exit 2
+fi
+
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || exit 1
+target=$(pwd) || exit 1
+mask=$(umask)
+
+tmp=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/json2dir.XXXXXXXXXX") || exit 1
+trap 'rm -rf -- "$tmp"' 0
+trap 'exit 1' HUP INT TERM
+
+FACTER_json2dir_input=/dev/stdin FACTER_json2dir_cwd=$target FACTER_json2dir_umask=$mask \
+"${JSON2DIR_PUPPET:-puppet}" apply --detailed-exitcodes --color=false --log_level=warning \
+  --confdir="$tmp/conf" --vardir="$tmp/var" --codedir="$tmp/code" --logdir="$tmp/log" \
+  --rundir="$tmp/run" --publicdir="$tmp/public" --no-report --no-usecacheonfailure \
+  "$script_dir/json2dir.pp" >&2
+
+# --detailed-exitcodes: 0 = nothing to change, 2 = changes applied, 4/6 = some resources
+# failed, 1 = compilation failed (invalid document).
+case $? in
+  0|2) exit 0 ;;
+  *) exit 1 ;;
+esac
