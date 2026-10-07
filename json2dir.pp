@@ -149,11 +149,13 @@ $cwd = $facts['json2dir_cwd']
 $umask = $facts['json2dir_umask']
 unless $cwd =~ /\A\x2f/ { fail('json2dir: fact json2dir_cwd must be an absolute path') }
 # File modes: 0666 & ~umask, and | 0111 for scripts (Puppet has no bitwise operators).
-$file_digit = { '0' => '6', '1' => '6', '2' => '4', '3' => '4', '4' => '2', '5' => '2', '6' => '0', '7' => '0' }
-$exec_digit = { '0' => '7', '1' => '7', '2' => '5', '3' => '5', '4' => '3', '5' => '3', '6' => '1', '7' => '1' }
+# They are written symbolically ("u=rw,g=r,o=r"): Puppet adds x to every r of a numeric mode
+# when the path is (or is a symlink to) a directory at apply time, even if it replaces it.
+$file_perm = { '0' => 'rw', '1' => 'rw', '2' => 'r', '3' => 'r', '4' => 'w', '5' => 'w', '6' => '', '7' => '' }
+$exec_perm = { '0' => 'rwx', '1' => 'rwx', '2' => 'rx', '3' => 'rx', '4' => 'wx', '5' => 'wx', '6' => 'x', '7' => 'x' }
 if $umask =~ /\A[0-7]*([0-7])([0-7])([0-7])\z/ {
-  $file_mode = "0${file_digit[$1]}${file_digit[$2]}${file_digit[$3]}"
-  $exec_mode = "0${exec_digit[$1]}${exec_digit[$2]}${exec_digit[$3]}"
+  $file_mode = "u=${file_perm[$1]},g=${file_perm[$2]},o=${file_perm[$3]}"
+  $exec_mode = "u=${exec_perm[$1]},g=${exec_perm[$2]},o=${exec_perm[$3]}"
 } else {
   fail('json2dir: fact json2dir_umask must be octal')
 }
